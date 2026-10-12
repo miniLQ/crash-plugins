@@ -132,7 +132,8 @@ list(APPEND PLUGIN_SOURCES
     t32/t32.cpp
     lockdep/lockdep.cpp
     irq/irq.cpp
-    hungtask/hungtask.cpp)
+    hungtask/hungtask.cpp
+    binder_diag/binder_diag.cpp)
 
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
@@ -403,4 +404,8 @@ add_plugin(irqs
 # =================== build hungtask ===================
 add_plugin(hungtask
     hungtask/hungtask.cpp)
+
+# =================== build binder_diag ===================
+add_plugin(binder_diag
+    binder_diag/binder_diag.cpp)
 endif()

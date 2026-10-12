@@ -128,6 +128,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | sched | ✓ | ✓ | Task scheduling information |
 | hungtask | ✓ | ✓ | Hung task, D-state analysis, and deadlock diagnostics |
 | binder | ✓ | ✓ | Binder IPC analysis |
+| binder_diag | ✓ | ✓ | Binder transaction call chains, deadlocks, and starvation |
 | lmkd | ✓ | ✓ | Low Memory Killer Daemon |
 | **Device & Drivers** |||
 | dd | ✓ | ✓ | Device driver enumeration |

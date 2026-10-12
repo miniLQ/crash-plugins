@@ -43,6 +43,7 @@ Support command:
 | [iommu](#iommu)          | √           | √            | √            | √            |  print iommu information |
 | [irqs](#irqs)            | √           | √            | √            | √            |  show irqs and softirq info |
 | [hungtask](#hungtask)    | √           | √            | √            | √            |  hung task and deadlock diagnostics |
+| [binder_diag](#binder_diag)| √         | √            | √            | √            |  binder call chains, deadlocks, and starvation |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -2720,5 +2721,102 @@ Kernel Hung Task Detector Configuration:
   sysctl_hung_task_panic        : 1 (Panic enabled on hung task)
   sysctl_hung_task_warnings     : 10
   sysctl_hung_task_check_count  : 4194304
+```
+
+## binder_diag
+This command performs deep diagnosis for Android Binder IPC, reconstructing multi-hop transaction wait chains, detecting circular deadlocks, identifying top blocker processes, and diagnosing thread pool starvation.
+
+### binder_diag (or binder_diag -o)
+Display high-level Binder IPC system overview and health check.
+```
+crash> binder_diag
+Android Binder IPC System Overview & Diagnostics
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   Binder Processes:       64         Total Binder Threads: 248               │
+│   Ready/Waiting Threads:  180        Active Sync Calls:     3                │
+│   Starved Processes:      0          Congested Queues (>5): 0                │
+│   Deadlock Loops Detected:0                                                  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   Health Assessment & Alerts:                                                │
+│   [*] NOTICE: 3 active sync call(s) in progress. No circular deadlocks.      │
+│       Run 'binder_diag -c' to inspect transaction wait chains.               │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### binder_diag -c (or -t)
+Display synchronous transaction call chains and trace down to the root cause leaf thread.
+```
+crash> binder_diag -c
+Active Binder Transaction Call Chains & Root Cause Analysis
+==============================================================================
+[Chain #1]
+[1067:2046] system_server (Binder:1067_1) [State: S(IN)]
+  └─► [588:610] powerstateservice (binder:588_2) [State: S(IN)] (trans: 4268, code: 2)
+        └─► [908:920] vendor.qti.hardware.power (binder:908_1) [State: D(UN)] (trans: 4272, code: 5)
+            ▲ [!] ROOT CAUSE: Leaf thread is blocked in D-state (wchan: io_schedule+0x38)
+------------------------------------------------------------------------------
+```
+
+### binder_diag -d
+Detect circular deadlocks (ABBA or multi-process loops) in Binder transactions.
+```
+crash> binder_diag -d
+Binder IPC Deadlock Cycle Detection
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   [+] NORMAL: No circular deadlocks detected in current Binder IPC graph.    │
+│       All synchronous calls are organized in acyclic dependency trees.       │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### binder_diag -b
+Rank top blocker processes that are holding up the most downstream threads and processes.
+```
+crash> binder_diag -b
+Top Binder Blocker Processes Ranking
+┌─────┬──────┬────────────────────────┬────────────────┬────────────────┬──────────────┐
+│ Rank│  PID │ Process Name           │ Blocked Procs  │ Blocked Threads│ Total Trans  │
+├─────┼──────┼────────────────────────┼────────────────┼────────────────┼──────────────┤
+│   1 │  908 │ vendor.qti.hardware... │              2 │              3 │            3 │
+│   2 │  588 │ powerstateservice      │              1 │              1 │            1 │
+└─────┴──────┴────────────────────────┴────────────────┴────────────────┴──────────────┘
+Primary Blocker: PID 908 (vendor.qti.hardware.power) blocking 3 thread(s) across 2 process(es)
+```
+
+### binder_diag -s
+Diagnose Binder thread pool starvation, capacity utilization, and queue congestion.
+```
+crash> binder_diag -s
+Binder Thread Pool & Queue Health Diagnostics
+┌──────┬────────────────────────┬─────┬───────┬──────┬──────┬──────┬────────────┬──────────┐
+│  PID │ Process Name           │ Max │ Started│ Ready│ Busy │ Todo │ Free Async │ Status   │
+├──────┼────────────────────────┼─────┼───────┼──────┼──────┼──────┼────────────┼──────────┤
+│ 1067 │ system_server          │  31 │    16 │   14 │    2 │    0 │     512 KB │ OK       │
+│  801 │ surfaceflinger         │  15 │     8 │    7 │    1 │    0 │     512 KB │ OK       │
+│  504 │ servicemanager         │   4 │     2 │    2 │    0 │    0 │     512 KB │ OK       │
+└──────┴────────────────────────┴─────┴───────┴──────┴──────┴──────┴────────────┴──────────┘
+```
+
+### binder_diag -p <pid>
+Deep-dive into a specific process's incoming transactions, outgoing transactions, and thread states.
+```
+crash> binder_diag -p 1067
+Binder Process Deep-Dive: system_server (PID 1067)
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   PID:                    1067             Context:       binder             │
+│   Max Threads:            31               Total Threads: 16                 │
+│   Ready/Waiting Threads:  14               Active Busy:   2                  │
+│   Pending Todo Count:     0                Dead / Frozen: 0 / 0              │
+│   Buffer Size:            1024 KB          Free Async:    512 KB             │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   Incoming Transactions (Who is waiting for this process):                   │
+│     - From [4268:4283] com.android.settings (trans: 98800, code: 7, oneway: 0)
+├──────────────────────────────────────────────────────────────────────────────┤
+│   Outgoing Transactions (Who this process is waiting for):                   │
+│     - Thread 2046  --> [588:610] powerstateservice (trans: 4268, code: 2)     │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   Binder Threads List & States:                                              │
+│     - TID 2046   Binder:1067_1    State: [S    ] wchan: binder_thread_read [WAITING]
+│     - TID 2103   Binder:1067_2    State: [S    ] wchan: binder_thread_read
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
