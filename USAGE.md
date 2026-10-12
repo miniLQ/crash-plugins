@@ -41,6 +41,7 @@ Support command:
 | [ftrace](#ftrace)        | ×           | √            | ×            | ×            |  parser trace event info |
 | [lockdep](#lockdep)      | ×           | √            | ×            | ×            |  Lockdep detection       |
 | [iommu](#iommu)          | √           | √            | √            | √            |  print iommu information |
+| [irqs](#irqs)            | √           | √            | √            | √            |  show irqs and softirq info |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -2503,3 +2504,101 @@ crash> lockdep -d 0xffffff802726ca40
     ├─ Lock Status      : OK ACQUIRED
     └─ Debug            : class_idx=0x1b6, acquire_ip=0xffffffe2523b03f4, chain_key=0xffffffffffffffff (lockdep hash for deadlock detection)
 ```
+
+## irqs
+This command is used to analyze hardware interrupts (IRQ), per-CPU distribution, interrupt storms, and SoftIRQs.
+
+### irqs -a
+Display all registered IRQs overview.
+```
+crash> irqs -a
+Registered IRQs Overview
+┌─────┬────────┬──────────────┬────────────────────────────┬────────────────────────────┬──────────┬──────────┬─────────────┬───────────┐
+│ IRQ#│ HWIRQ  │ Chip         │ Name / Device              │ Handler                    │    Total │ Depth    │ Trigger     │ Affinity  │
+├─────┼────────┼──────────────┼────────────────────────────┼────────────────────────────┼──────────┼──────────┼─────────────┼───────────┤
+│  17 │     17 │ GICv3        │ arch_timer                 │ arch_timer_handler_virt    │  4529012 │ 0 (EN)   │ Level-Low   │ all (0-7) │
+│  22 │     22 │ GICv3        │ kgsl-3d0                   │ kgsl_irq_handler           │   182390 │ 0 (EN)   │ Level-High  │ 4-7       │
+│ 142 │    110 │ msmgpio      │ ufshcd                     │ ufshcd_intr                │    92314 │ 0 (EN)   │ Edge-Rising │ 0-3       │
+└─────┴────────┴──────────────┴────────────────────────────┴────────────────────────────┴──────────┴──────────┴─────────────┴───────────┘
+Total Registered IRQs: 85 | Total Interrupt Fires: 15428932
+```
+
+### irqs -c
+Display per-CPU interrupt fire distribution.
+```
+crash> irqs -c
+Per-CPU Interrupt Distribution (Displaying up to 8 CPUs)
+┌─────┬────────────────────────┬──────────┬──────────┬──────────┬──────────┬───────────┬───────────┐
+│ IRQ#│ Name                   │     CPU0 │     CPU1 │     CPU2 │     CPU3 │     Total │ Affinity  │
+├─────┼────────────────────────┼──────────┼──────────┼──────────┼──────────┼───────────┼───────────┤
+│  17 │ arch_timer             │  1132014 │  1132001 │  1132489 │  1132508 │   4529012 │ all (0-3) │
+│  22 │ kgsl-3d0               │        0 │        0 │   182390 │        0 │    182390 │ 2         │
+└─────┴────────────────────────┴──────────┴──────────┴──────────┴──────────┴───────────┴───────────┘
+```
+
+### irqs -s
+Analyze interrupt storm and top frequency rankings.
+```
+crash> irqs -s
+Interrupt Frequency Ranking (Top 25) & Storm Analysis
+┌─────┬─────┬────────┬────────────────────────────┬────────────────────────────┬──────────┬────────┬──────────────┐
+│ Rank│ IRQ#│ HWIRQ  │ Name / Device              │ Handler                    │    Total │  Ratio │ Top CPU Fire │
+├─────┼─────┼────────┼────────────────────────────┼────────────────────────────┼──────────┼────────┼──────────────┤
+│   1 │  17 │     17 │ arch_timer                 │ arch_timer_handler_virt    │  4529012 │ 45.20% │ CPU0 (1132k) │
+│   2 │  22 │     22 │ kgsl-3d0                   │ kgsl_irq_handler           │   182390 │  8.50% │ CPU2 (182k)  │
+└─────┴─────┴────────┴────────────────────────────┴────────────────────────────┴──────────┴────────┴──────────────┘
+Total Interrupt Fires Across System: 10020000
+```
+
+### irqs -i <irq>
+Display detailed descriptor and action chain for a specific IRQ.
+```
+crash> irqs -i 17
+IRQ Details: IRQ 17
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  IRQ Number:             17                                                  │
+│  HWIRQ Number:           17                                                  │
+│  irq_desc Address:       0xffffffdd7a192800                                  │
+│  Chip Name:              GICv3                                               │
+│  Domain Name:            GICv3                                               │
+│  Trigger Type:           Level-Low                                           │
+│  Disable Depth:          0 (Enabled)                                         │
+│  Unhandled Interrupts:   0                                                   │
+│  Affinity:               all (0-7)                                           │
+│  Total Interrupt Fires:  4529012                                             │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  Per-CPU Breakdown:                                                          │
+│    CPU0 : 1132014   |  CPU1 : 1132001   |  CPU2 : 1132489   |  CPU3 : 1132508  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  Actions Chain (1 registered):                                               │
+│    [0] Name:            arch_timer                                           │
+│        Handler:         arch_timer_handler_virt                              │
+│        Flags:           PERCPU                                               │
+│        Dev ID:          0xffffffdd7a01b200                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### irqs -S
+Display SoftIRQ status, handlers, per-CPU counters, and pending flags.
+```
+crash> irqs -S
+SoftIRQ System Overview
+┌────┬────────────┬────────────────────────────┬──────────┬──────────┬──────────┬────────────┐
+│  # │ SoftIRQ    │ Action Handler             │     CPU0 │     CPU1 │    Total │ Pending    │
+├────┼────────────┼────────────────────────────┼──────────┼──────────┼──────────┼────────────┤
+│  0 │ HI         │ tasklet_hi_action          │        0 │        0 │        0 │ None       │
+│  1 │ TIMER      │ run_timer_softirq          │   234012 │   233910 │   467922 │ None       │
+│  2 │ NET_TX     │ net_tx_action              │     1200 │     1180 │     2380 │ None       │
+│  3 │ NET_RX     │ net_rx_action              │    45120 │    44980 │    90100 │ None       │
+│  4 │ BLOCK      │ blk_done_softirq           │     8900 │     8920 │    17820 │ None       │
+│  5 │ IRQ_POLL   │ irq_poll_softirq           │        0 │        0 │        0 │ None       │
+│  6 │ TASKLET    │ tasklet_action             │     3410 │     3390 │     6800 │ None       │
+│  7 │ SCHED      │ run_rebalance_domains      │   120450 │   120300 │   240750 │ None       │
+│  8 │ HRTIMER    │ hrtimer_run_softirq        │    56000 │    55980 │   111980 │ None       │
+│  9 │ RCU        │ rcu_core                   │   312000 │   311900 │   623900 │ None       │
+└────┴────────────┴────────────────────────────┴──────────┴──────────┴──────────┴────────────┘
+ksoftirqd Thread Status:
+  ksoftirqd/0  : PID 14     Task: 0xffffff802726d040
+  ksoftirqd/1  : PID 21     Task: 0xffffff802726e040
+```
+
