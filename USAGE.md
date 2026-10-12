@@ -2820,3 +2820,135 @@ Binder Process Deep-Dive: system_server (PID 1067)
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
+## subsys
+Analyze Qualcomm peripheral subsystems (Modem/MPSS, Audio/ADSP, Compute/CDSP, Sensors/SLPI, Neural/NPU) and Subsystem Restart (SSR) crash states.
+
+### subsys
+Display high-level overview and health matrix of all registered peripheral subsystems.
+```
+crash> subsys
+Qualcomm Peripheral Subsystems & SSR Health Overview
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   Subsystems:   3         Online:  3         Crashed: 0                      │
+│   SSR Restarts: 0         Offline: 0         Pending: 0                      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   [+] NORMAL: All registered peripheral subsystems are healthy and running.  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Peripheral Subsystems Status Table
+┌──────────────────────────┬────────────────┬──────────┬─────────┬─────────────┐
+│ Subsystem Name           │ Role / Alias   │ State    │ Crashes │ Firmware    │
+├──────────────────────────┼────────────────┼──────────┼─────────┼─────────────┤
+│ 6000000.remoteproc-mss   │ Modem / MPSS   │ ONLINE   │     0  │ modem.mdt   │
+│ b000000.remoteproc-cdsp  │ Compute / CDSP │ ONLINE   │     0  │ cdsp.mdt    │
+│ a400000.remoteproc-adsp  │ Audio / ADSP   │ ONLINE   │     0  │ adsp.mdt    │
+└──────────────────────────┴────────────────┴──────────┴─────────┴─────────────┘
+Commands: 'subsys -c' (Crash & SSR details), 'subsys -s <name>' (Deep-dive), 'subsys -n' (SSR notifiers)
+```
+
+### subsys <name|addr> (or subsys -s <name|addr>)
+Deep-dive inspection of a specific subsystem (Modem, ADSP, CDSP, SLPI, etc.) directly by alias, name, or device address:
+```
+crash> subsys adsp
+Peripheral Subsystem Deep-Dive: a400000.remoteproc-adsp
+┌──────────────────────┬───────────────────────────────────────────────────────┐
+│ Subsystem Name       │ a400000.remoteproc-adsp                               │
+│ Role / Alias         │ Audio / ADSP                                          │
+│ Firmware Image       │ adsp.mdt                                              │
+│ Remoteproc Address   │ 0xffffff8047c48000                                    │
+│ Private Data (priv)  │ 0xffffff8047c485a8                                    │
+│ Driver Ops (ops)     │ 0xffffff8006197180                                    │
+│ State                │ ONLINE                                                │
+│ Crash Count          │ 0                                                     │
+│ Power Count          │ 1                                                     │
+│ Auto-Boot Setting    │ DISABLED                                              │
+│ Recovery Disabled    │ NO (SSR enabled)                                      │
+│ Coredump Config      │ ENABLED                                               │
+│ Dump Memory Segments │ 37 segments (37.99 MB)                                │
+│ Ops -> Start Handler │ adsp_start                                            │
+│ Ops -> Stop Handler  │ adsp_stop                                             │
+│ Ops -> Dump Handler  │ adsp_minidump                                         │
+│ Ops -> Panic Handler │ adsp_panic                                            │
+│ Crash Reason         │ sys_m_smsm.c:296:APPS force stop                      │
+└──────────────────────┴───────────────────────────────────────────────────────┘
+
+Attached Subdevices (3 registered):
+┌──────────────────┬─────────────────┬─────────────────────────────────────────┐
+│ Subdevice Type   │ SSR Identifier  │ Callback Function (Start/Prepare)       │
+├──────────────────┼─────────────────┼─────────────────────────────────────────┤
+│ GLINK (IPC)      │ lpass           │ glink_subdev_start                      │
+│ SYSMON (SSCTL)   │ -               │ sysmon_start                            │
+│ SSR (Restart)    │ -               │ ssr_notify_start                        │
+└──────────────────┴─────────────────┴─────────────────────────────────────────┘
+```
+
+### subsys -c [name|addr]
+Diagnose crashed subsystems, SSR restart status, failure causes, and SMEM crash reasons (optionally filtered by subsystem):
+```
+crash> subsys -c adsp
+Qualcomm Subsystem Crash & SSR Failure Diagnosis
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   [*] NOTICE: Zero SSR reboots. Subsystem stop reasons recorded in SMEM.     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Subsystem: a400000.remoteproc-adsp (Audio / ADSP)
+┌──────────────────────┬───────────────────────────────────────────────────────┐
+│ Remoteproc Address   │ 0xffffff8047c48000                                    │
+│ Current State        │ ONLINE                                                │
+│ Crash Count          │ 0                                                     │
+│ Auto-Recovery (SSR)  │ ENABLED                                               │
+│ Coredump Config      │ ENABLED                                               │
+│ Crash Handler Work   │ IDLE (rproc_crash_handler_work)                       │
+│ SMEM Crash Reason    │ sys_m_smsm.c:296:APPS force stop                      │
+└──────────────────────┴───────────────────────────────────────────────────────┘
+```
+
+### subsys -n
+Display the Subsystem Restart (SSR) notification matrix and all registered kernel driver listeners dispatched during peripheral crashes and reboots.
+```
+crash> subsys -n
+Subsystem Restart (SSR) Notification Matrix
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Registered SSR channels and kernel driver listeners dispatched during reboot │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────┬────────────┬────────────────────────────────────────────────┐
+│ Subsystem      │ Priority   │ Notifier Callback Handler                      │
+├────────────────┼────────────┼────────────────────────────────────────────────┤
+│ lpass          │ 0          │ qcom_slim_ngd_ssr_notify                       │
+│                │ 0          │ fastrpc_restart_notifier_cb                    │
+├────────────────┼────────────┼────────────────────────────────────────────────┤
+│ mpss           │ 1          │ icnss_modem_notifier_nb                        │
+│                │ 0          │ fastrpc_restart_notifier_cb                    │
+│                │ 0          │ ipa3_lcl_mdm_ssr_notifier_cb                   │
+├────────────────┼────────────┼────────────────────────────────────────────────┤
+│ cdsp           │ 0          │ fastrpc_restart_notifier_cb                    │
+├────────────────┼────────────┼────────────────────────────────────────────────┤
+│ dsps           │ 0          │ fastrpc_restart_notifier_cb                    │
+└────────────────┴────────────┴────────────────────────────────────────────────┘
+Tip: In SSR hang issues, trace if any listener above is stuck during notification.
+```
+
+### subsys -m
+Display Qualcomm Shared Memory (SMEM) and SMP2P cross-processor communication state channels.
+```
+crash> subsys -m
+Qualcomm Shared Memory (SMEM) & SMP2P State Channels
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Cross-processor signaling and interrupt channels between APPS and Peripherals│
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────┬────────────────────────────────┬────────────────────────┐
+│ State Address      │ SMP2P / SMEM Node Name         │ Update Callback        │
+├────────────────────┼────────────────────────────────┼────────────────────────┤
+│ 0xffffff8003e77380 │ qcom,smp2p-ipa-1-out           │ smp2p_update_bits      │
+│ 0xffffff8003e77440 │ master-kernel                  │ smp2p_update_bits      │
+│ 0xffffff8003d06f80 │ qcom,smp2p-rdbg5-out           │ smp2p_update_bits      │
+│ 0xffffff8003d068c0 │ master-kernel                  │ smp2p_update_bits      │
+│ 0xffffff8003711300 │ qcom,smp2p-rdbg2-out           │ smp2p_update_bits      │
+│ 0xffffff8003711380 │ sleepstate-out                 │ smp2p_update_bits      │
+│ 0xffffff8003711440 │ master-kernel                  │ smp2p_update_bits      │
+└────────────────────┴────────────────────────────────┴────────────────────────┘
+```
+
+

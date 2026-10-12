@@ -139,6 +139,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | thermal | ✓ | ✓ | Thermal zone monitoring |
 | cpu | ✓ | ✓ | CPU frequency and policy |
 | watchdog | ✓ | ✓ | Watchdog timer status |
+| subsys | ✓ | ✓ | Qualcomm peripheral subsystems and SSR restart analysis |
 | **Debugging & Logging** |||
 | rtb | ✓ | ✓ | Register trace buffer |
 | pstore | ✓ | ✓ | Persistent storage logs |
