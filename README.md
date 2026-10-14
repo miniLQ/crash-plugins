@@ -123,6 +123,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | pageowner | ✓ | ✓ | Page allocation tracking |
 | pagecache | ✓ | ✓ | Page cache analysis |
 | meminfo | ✓ | ✓ | Memory statistics |
+| mem_diag | ✓ | ✓ | Memory deadlock, OOM killable audit, watermarks, and leaks |
 | **Process & Scheduling** |||
 | procrank | ✓ | ✓ | Process memory ranking (VSS/RSS/PSS/USS) |
 | sched | ✓ | ✓ | Task scheduling information |

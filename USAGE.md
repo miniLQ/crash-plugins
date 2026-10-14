@@ -2951,4 +2951,197 @@ Qualcomm Shared Memory (SMEM) & SMP2P State Channels
 └────────────────────┴────────────────────────────────┴────────────────────────┘
 ```
 
+## mem_diag
+Deep diagnosis for memory deadlocks, OOM killable audit, zone watermarks, process RSS, kernel slab cache leaks, and direct reclaim stalls.
+
+### Synopsis
+```
+mem_diag [-o] [-d] [-p [pid]] [-s] [-r] [-a]
+```
+- `-o`: System memory overview and zone watermarks (Default).
+- `-d`: Detect OOM deadlocks and audit killable vs unkillable processes (`oom_score_adj == -1000`).
+- `-p [pid]`: Top memory-consuming processes ranked by physical RSS, or deep-dive into a specific PID.
+- `-s`: Kernel slab cache memory analysis (Reclaimable vs Unreclaimable leaks).
+- `-r`: Direct reclaim contention audit (tasks stalled in `shrink_node` / allocator slowpaths).
+- `-a`: Comprehensive memory diagnostics full report.
+
+### mem_diag (or mem_diag -o)
+Display high-level system memory health, zone watermark status, and OOM deadlock alerts:
+```
+crash> mem_diag
+Linux Kernel Memory Health & Watermark Diagnosis
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   Total RAM:    5.33 GB       Free RAM: 130.88 MB     Used RAM: 5.20 GB      │
+│   Page Cache:   4.10 GB       Anon RSS: 165.87 MB     Slab RAM: 327.29 MB    │
+│   Slab Reclaim: 120.27 MB     Slab Unreclaim: 207.03 MB  Killable: 0     / 165   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   [!] CRITICAL: Normal zone free memory fell below MIN watermark!            │
+│       Kernel direct reclaim triggered; system was starved of free pages.     │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   [!] OOM DEADLOCK: Zero killable processes found! (All oom_score_adj == -1000) │
+│       Run 'mem_diag -d' to inspect unkillable processes and deadlock reason. │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Memory Zone Watermarks & Free Space
+┌────────────┬────────────┬───────────┬───────────┬───────────┬────────────────┐
+│ Zone Name  │ Free (MB)  │ Min Wmark │ Low Wmark │ High Wmark│ Watermark Stat │
+├────────────┼────────────┼───────────┼───────────┼───────────┼────────────────┤
+│ Normal     │ 130.88 MB  │ 72 MB     │ 118.91 MB │ 165.82 MB │ CRIT (< MIN)   │
+└────────────┴────────────┴───────────┴───────────┴───────────┴────────────────┘
+Commands: 'mem_diag -d' (OOM Deadlock), 'mem_diag -p' (Top RSS), 'mem_diag -s' (Slab leaks)
+```
+
+### mem_diag -d
+Detect circular memory starvation and audit why the kernel panic occurred:
+```
+crash> mem_diag -d
+Out-Of-Memory (OOM) Deadlock & Killable Task Audit
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   User Tasks: 165     Killable (> -1000): 0       Unkillable (== -1000): 165    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   [!] ROOT CAUSE CONFIRMED: Out of memory and no killable processes!         │
+│       When memory ran out, select_bad_process() found zero killable tasks    │
+│       because every process had oom_score_adj == -1000 (OOM_SCORE_ADJ_MIN).  │
+│       This forced panic('Kernel panic - not syncing: System is deadlocked'). │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Unkillable Processes Audit (oom_score_adj == -1000) - Ranked by RSS:
+┌────────┬──────────────────────┬──────────────┬──────────────┬────────────────┐
+│ PID    │ Command              │ Physical RSS │ Virtual Size │ OOM Score Adj  │
+├────────┼──────────────────────┼──────────────┼──────────────┼────────────────┤
+│ 7437   │ main                 │ 78.94 MB     │ 13.51 GB     │ -1000          │
+│ 1921   │ surfaceflinger       │ 61.77 MB     │ 12.22 GB     │ -1000          │
+│ 2801   │ bootanimation        │ 40.36 MB     │ 11.87 GB     │ -1000          │
+│ 7440   │ cameraserver         │ 21.13 MB     │ 11.01 GB     │ -1000          │
+│ 7441   │ mediaserver64        │ 20.63 MB     │ 11.02 GB     │ -1000          │
+│ 1875   │ camera.provider      │ 20.18 MB     │ 11.91 GB     │ -1000          │
+│ 2293   │ mediaswcodec         │ 19.82 MB     │ 11.52 GB     │ -1000          │
+│ 1871   │ mifaced              │ 17.08 MB     │ 11.01 GB     │ -1000          │
+│ 7456   │ mediacodeclist_      │ 16.82 MB     │ 10.61 GB     │ -1000          │
+│ 2255   │ mediaextractor       │ 16.09 MB     │ 10.84 GB     │ -1000          │
+│ 1879   │ vendor.qti.hard      │ 15.36 MB     │ 10.87 GB     │ -1000          │
+│ 7452   │ usap64               │ 11.91 MB     │ 10.54 GB     │ -1000          │
+│ 6091   │ xtra-daemon          │ 9.59 MB      │ 10.76 GB     │ -1000          │
+│ 1771   │ android.hardwar      │ 9.21 MB      │ 11.10 GB     │ -1000          │
+│ 2403   │ main                 │ 8.77 MB      │ 12.06 GB     │ -1000          │
+│ 1      │ init                 │ 8.49 MB      │ 10.40 GB     │ -1000          │
+│ 3679   │ artd                 │ 8.34 MB      │ 10.60 GB     │ -1000          │
+│ 2427   │ main                 │ 7.59 MB      │ 12.05 GB     │ -1000          │
+│ 766    │ logd                 │ 7.10 MB      │ 10.40 GB     │ -1000          │
+│ 998    │ keystore2            │ 6.90 MB      │ 10.48 GB     │ -1000          │
+│ 1897   │ vendor.xiaomi.h      │ 6.77 MB      │ 10.78 GB     │ -1000          │
+│ 1891   │ vendor.qti.medi      │ 6.51 MB      │ 10.59 GB     │ -1000          │
+│ 1857   │ android.hardwar      │ 6.30 MB      │ 10.81 GB     │ -1000          │
+│ 7446   │ audio.service_6      │ 6.30 MB      │ 10.56 GB     │ -1000          │
+│ 2261   │ binder:2261_2        │ 6.12 MB      │ 10.55 GB     │ -1000          │
+│   ... and 140 more unkillable processes (all oom_score_adj == -1000)         │
+└────────┴──────────────────────┴──────────────┴──────────────┴────────────────┘
+Note: Processes with oom_score_adj=-1000 are completely exempt from OOM kill.
+```
+
+### mem_diag -p
+Rank top memory-consuming processes by physical memory (Total RSS, Anonymous RSS, File-mapped RSS, Swap):
+```
+crash> mem_diag -p
+Top 20 Memory-Consuming Processes (Ranked by RSS)
+┌───────┬─────────────────┬───────────┬──────────┬──────────┬─────────┬────────┐
+│ PID   │ Command         │ Total RSS │ Anon RSS │ File RSS │ Swap    │ Score  │
+├───────┼─────────────────┼───────────┼──────────┼──────────┼─────────┼────────┤
+│ 7437  │ main            │ 78.94 MB  │ 35.09 MB │ 43.48 MB │ 0 B     │ -1000  │
+│ 1921  │ surfaceflinger  │ 61.77 MB  │ 18.05 MB │ 43.25 MB │ 20.88 MB │ -1000  │
+│ 2801  │ bootanimation   │ 40.36 MB  │ 4.21 MB  │ 35.73 MB │ 11.77 MB │ -1000  │
+│ 7440  │ cameraserver    │ 21.13 MB  │ 5.07 MB  │ 15.71 MB │ 0 B     │ -1000  │
+│ 7441  │ mediaserver64   │ 20.63 MB  │ 4.75 MB  │ 15.60 MB │ 0 B     │ -1000  │
+│ 1875  │ camera.provider │ 20.18 MB  │ 12.27 MB │ 7.36 MB  │ 36.26 MB │ -1000  │
+│ 2293  │ mediaswcodec    │ 19.82 MB  │ 1.84 MB  │ 17.63 MB │ 5.27 MB │ -1000  │
+│ 1871  │ mifaced         │ 17.08 MB  │ 812 KB   │ 16.02 MB │ 4.52 MB │ -1000  │
+│ 7456  │ mediacodeclist_ │ 16.82 MB  │ 4.04 MB  │ 12.52 MB │ 0 B     │ -1000  │
+│ 2255  │ mediaextractor  │ 16.09 MB  │ 852 KB   │ 14.98 MB │ 4.20 MB │ -1000  │
+│ 1879  │ vendor.qti.hard │ 15.36 MB  │ 4.02 MB  │ 11.05 MB │ 5.19 MB │ -1000  │
+│ 7452  │ usap64          │ 11.91 MB  │ 3.57 MB  │ 8.10 MB  │ 0 B     │ -1000  │
+│ 6091  │ xtra-daemon     │ 9.59 MB   │ 2.21 MB  │ 7.15 MB  │ 0 B     │ -1000  │
+│ 1771  │ android.hardwar │ 9.21 MB   │ 1.32 MB  │ 7.61 MB  │ 1.38 MB │ -1000  │
+│ 2403  │ main            │ 8.77 MB   │ 964 KB   │ 7.49 MB  │ 6.28 MB │ -1000  │
+│ 1     │ init            │ 8.49 MB   │ 2.89 MB  │ 4.18 MB  │ 2.87 MB │ -1000  │
+│ 3679  │ artd            │ 8.34 MB   │ 2.45 MB  │ 5.60 MB  │ 876 KB  │ -1000  │
+│ 2427  │ main            │ 7.59 MB   │ 0 B      │ 7.26 MB  │ 7.89 MB │ -1000  │
+│ 766   │ logd            │ 7.10 MB   │ 4.35 MB  │ 2.49 MB  │ 1.67 MB │ -1000  │
+│ 998   │ keystore2       │ 6.90 MB   │ 1.08 MB  │ 5.56 MB  │ 1.78 MB │ -1000  │
+└───────┴─────────────────┴───────────┴──────────┴──────────┴─────────┴────────┘
+Tip: Use 'mem_diag -p <pid>' to inspect full breakdown and threads for a PID.
+```
+
+### mem_diag -p <pid>
+Deep-dive inspection into a specific process's physical memory footprint:
+```
+crash> mem_diag -p 7452
+Process Memory Deep-Dive: PID 7452 (usap64)
+┌──────────────────────┬───────────────────────────────────────────────────────┐
+│ Process PID / TGID   │ 7452 / 7452                                           │
+│ Command Name         │ usap64                                                │
+│ Parent PID (PPID)    │ 1                                                     │
+│ Task Struct Pointer  │ 0xffffff802e0412c0                                    │
+│ MM Struct Pointer    │ 0xffffff801c329800                                    │
+│ OOM Score Adjustment │ -1000 (OOM_SCORE_ADJ_MIN - Unkillable)                │
+│ Total Virtual Memory │ 10.54 GB (2764269 pages)                              │
+│ Physical RSS Total   │ 11.91 MB (3048 pages)                                 │
+│ Anonymous RSS        │ 3.57 MB                                               │
+│ File Mapped RSS      │ 8.10 MB                                               │
+│ Swap Usage           │ 0 B                                                   │
+│ Shared Memory (Shmem)│ 240 KB                                                │
+└──────────────────────┴───────────────────────────────────────────────────────┘
+```
+
+### mem_diag -s
+Analyze kernel slab caches, distinguishing reclaimable caches (dentry, inode) from unreclaimable kernel allocations:
+```
+crash> mem_diag -s
+Kernel Slab Caches Memory Analysis (Top 15 by Memory)
+┌──────────────────────────┬────────────┬──────────┬───────────┬───────────────┐
+│ Slab Cache Name          │ Memory     │ Slabs    │ Objects   │ Reclaim Type  │
+├──────────────────────────┼────────────┼──────────┼───────────┼───────────────┤
+│ inode_cache              │ 30.55 MB   │ 1955     │ 44965     │ Reclaimable   │
+│ radix_tree_node          │ 29.39 MB   │ 1881     │ 52668     │ Reclaimable   │
+│ kmalloc-4k               │ 25.25 MB   │ 808      │ 6464      │ Unreclaimable │
+│ erofs_pcluster-1         │ 19.20 MB   │ 4915     │ 127790    │ Reclaimable   │
+│ vm_area_struct           │ 16.62 MB   │ 4256     │ 85120     │ Unreclaimable │
+│ kernfs_node_cache        │ 15.55 MB   │ 3980     │ 119400    │ Unreclaimable │
+│ dentry                   │ 14.61 MB   │ 1870     │ 72930     │ Reclaimable   │
+│ kmalloc-64               │ 12.43 MB   │ 3183     │ 203712    │ Unreclaimable │
+│ task_struct              │ 11.38 MB   │ 364      │ 2184      │ Unreclaimable │
+│ kmalloc-1k               │ 8.69 MB    │ 278      │ 8896      │ Unreclaimable │
+│ maple_node               │ 7.53 MB    │ 964      │ 30848     │ Unreclaimable │
+│ f2fs_inode_cache         │ 7.16 MB    │ 229      │ 5496      │ Reclaimable   │
+│ biovec-max               │ 7.06 MB    │ 226      │ 1808      │ Unreclaimable │
+│ kmalloc-2k               │ 6.88 MB    │ 220      │ 3520      │ Unreclaimable │
+│ kmalloc-8k               │ 6 MB       │ 192      │ 768       │ Unreclaimable │
+└──────────────────────────┴────────────┴──────────┴───────────┴───────────────┘
+Slab Summary: Reclaimable: 120.39 MB | Unreclaimable: 177.20 MB
+Notice: Unreclaimable slab dominates kernel memory (cannot be freed by reclaim).
+```
+
+### mem_diag -r
+Audit direct reclaim contention and identify all tasks/threads stalled in direct memory reclaim:
+```
+crash> mem_diag -r
+Direct Reclaim Contention & Blocked Tasks
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   [!] 6 task(s) currently blocked in memory direct reclaim!                  │
+│       Tasks are actively stalling in shrink_node / page allocation.          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+Tasks in Direct Reclaim:
+┌────────┬──────────────────┬──────────┬───────────────────────────────────────┐
+│ PID    │ Command          │ State    │ Blocked Reclaim Function / Channel    │
+├────────┼──────────────────┼──────────┼───────────────────────────────────────┤
+│ 89     │ kswapd0          │ RECLAIM  │ PF_MEMALLOC (direct reclaim)          │
+│ 128    │ kshrink_slabd    │ RECLAIM  │ PF_MEMALLOC (direct reclaim)          │
+│ 1756   │ diag-router      │ RECLAIM  │ PF_MEMALLOC (direct reclaim)          │
+│ 1924   │ tftp_server      │ RECLAIM  │ PF_MEMALLOC (direct reclaim)          │
+│ 7437   │ main             │ RECLAIM  │ PF_MEMALLOC (direct reclaim)          │
+│ 7452   │ usap64           │ RECLAIM  │ out_of_memory [PANIC TRACE]           │
+└────────┴──────────────────┴──────────┴───────────────────────────────────────┘
+```
+
+
 

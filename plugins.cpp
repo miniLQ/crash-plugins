@@ -59,6 +59,7 @@
 #include "hungtask/hungtask.h"
 #include "binder_diag/binder_diag.h"
 #include "subsys/subsys.h"
+#include "mem_diag/mem_diag.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -142,6 +143,7 @@ std::shared_ptr<Irq>           Irq::instance           = nullptr;
 std::shared_ptr<HungTask>      HungTask::instance      = nullptr;
 std::shared_ptr<BinderDiag>    BinderDiag::instance    = nullptr;
 std::shared_ptr<Subsys>        Subsys::instance        = nullptr;
+std::shared_ptr<MemDiag>       MemDiag::instance       = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -191,6 +193,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<HungTask>());
     plugins.push_back(make_and_init<BinderDiag>());
     plugins.push_back(make_and_init<Subsys>());
+    plugins.push_back(make_and_init<MemDiag>());
     std::cout << "\033[32m"
             << std::fixed << std::setprecision(6)
             << "[Load] Constructor: " << total_construct_time.count() << " s, "

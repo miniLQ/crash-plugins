@@ -134,7 +134,8 @@ list(APPEND PLUGIN_SOURCES
     irq/irq.cpp
     hungtask/hungtask.cpp
     binder_diag/binder_diag.cpp
-    subsys/subsys.cpp)
+    subsys/subsys.cpp
+    mem_diag/mem_diag.cpp)
 
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
@@ -413,4 +414,8 @@ add_plugin(binder_diag
 # =================== build subsys ===================
 add_plugin(subsys
     subsys/subsys.cpp)
+
+# =================== build mem_diag ===================
+add_plugin(mem_diag
+    mem_diag/mem_diag.cpp)
 endif()
