@@ -126,6 +126,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | **Process & Scheduling** |||
 | procrank | ✓ | ✓ | Process memory ranking (VSS/RSS/PSS/USS) |
 | sched | ✓ | ✓ | Task scheduling information |
+| hungtask | ✓ | ✓ | Hung task, D-state analysis, and deadlock diagnostics |
 | binder | ✓ | ✓ | Binder IPC analysis |
 | lmkd | ✓ | ✓ | Low Memory Killer Daemon |
 | **Device & Drivers** |||
