@@ -26,9 +26,7 @@
 DEFINE_PLUGIN_COMMAND(HungTask)
 #endif
 
-HungTask::HungTask() {
-    do_init_offset = true;
-}
+HungTask::HungTask() {}
 
 void HungTask::init_command(void) {
     cmd_name = "hungtask";
@@ -66,12 +64,9 @@ void HungTask::init_offset(void) {
     field_init(task_struct, comm);
     field_init(task_struct, flags);
     field_init(task_struct, prio);
-    field_init(task_struct, static_prio);
-    field_init(task_struct, normal_prio);
     field_init(task_struct, nvcsw);
     field_init(task_struct, nivcsw);
     field_init(task_struct, mm);
-    field_init(task_struct, active_mm);
     field_init(task_struct, thread);
 
     struct_init(thread_struct);
@@ -79,7 +74,6 @@ void HungTask::init_offset(void) {
 
     struct_init(mm_struct);
     field_init(mm_struct, total_vm);
-    field_init(mm_struct, rss_stat);
 }
 
 void HungTask::cmd_main(void) {
