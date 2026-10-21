@@ -41,6 +41,7 @@ Support command:
 | [ftrace](#ftrace)        | ×           | √            | ×            | ×            |  parser trace event info |
 | [lockdep](#lockdep)      | ×           | √            | ×            | ×            |  Lockdep detection       |
 | [iommu](#iommu)          | √           | √            | √            | √            |  print iommu information |
+| [subsys](#subsys)        | √           | √            | √            | √            |  show peripheral subsys  |
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -2502,4 +2503,99 @@ crash> lockdep -d 0xffffff802726ca40
     ├─ Timing           : holdtime=17.049303s, no race (fast path)
     ├─ Lock Status      : OK ACQUIRED
     └─ Debug            : class_idx=0x1b6, acquire_ip=0xffffffe2523b03f4, chain_key=0xffffffffffffffff (lockdep hash for deadlock detection)
+```
+
+## subsys
+Analyze Qualcomm peripheral subsystems (Modem/MPSS, Audio/ADSP, Compute/CDSP, Sensors/SLPI, Neural/NPU) and Subsystem Restart (SSR) crash states.
+
+### subsys -a
+Display high-level overview and health matrix of all registered peripheral subsystems.
+```
+crash> subsys -a
+Qualcomm Peripheral Subsystems & SSR Health Overview
+==============================================================================
+  Subsystems:   3         Online:  3         Crashed: 0
+  Crash Count:  0         Offline: 0         Pending: 0
+------------------------------------------------------------------------------
+  [+] All registered peripheral subsystems are healthy and running.
+==============================================================================
+
+Peripheral Subsystems Status Table
+Subsystem Name             Role / Alias     State      Crashes   Firmware     
+------------------------------------------------------------------------------
+6000000.remoteproc-mss     Modem / MPSS     ONLINE     0         modem.mdt    
+b000000.remoteproc-cdsp    Compute / CDSP   ONLINE     0         cdsp.mdt     
+a400000.remoteproc-adsp    Audio / ADSP     ONLINE     0         adsp.mdt     
+------------------------------------------------------------------------------
+Commands: 'subsys -c' (Crash & SSR details), 'subsys -s <name>' (Deep-dive), 'subsys -n' (SSR notifiers)
+```
+
+### subsys -s <name|addr>
+Deep-dive inspection of a specific subsystem (Modem, ADSP, CDSP, SLPI, etc.) directly by alias, name, or device address:
+```
+crash> subsys -s adsp
+Peripheral Subsystem Deep-Dive: a400000.remoteproc-adsp
+==============================================================================
+  Name / Role        : a400000.remoteproc-adsp (Audio / ADSP)
+  Remoteproc Address : 0xffffff8047c48000
+  Firmware Image     : adsp.mdt
+  Current State      : ONLINE (raw: 2)
+  Power Refcount     : 1
+  Auto-Boot On Load  : NO
+  SSR Auto-Recovery  : ENABLED
+  Crash Count        : 0
+  Coredump Setting   : ENABLED
+------------------------------------------------------------------------------
+  Remoteproc Driver Operations (ops: 0xffffff8006197180):
+    - start()    : adsp_start
+    - stop()     : adsp_stop
+    - coredump() : rproc_coredump
+    - panic()    : adsp_panic
+------------------------------------------------------------------------------
+  Attached Subdevices (3 registered):
+    - 0xffffff8047c48600: GLINK (IPC)        [adsp]
+    - 0xffffff8047c48640: SSR (Restart)      [adsp]
+    - 0xffffff8047c48680: SYSMON (SSCTL)
+==============================================================================
+```
+
+### subsys -c
+Diagnose peripheral subsystem crashes, failure states, and SMEM crash reasons:
+```
+crash> subsys -c
+Qualcomm Subsystem Crash & SSR Failure Diagnosis
+==============================================================================
+  [PASS] All peripheral subsystems are healthy. Zero crash events recorded.
+  No SSR restarts or pending recovery work queues detected.
+==============================================================================
+```
+
+### subsys -n (or subsys -l)
+Display Subsystem Restart (SSR) notification matrix and registered callback listeners:
+```
+crash> subsys -n
+Qualcomm Subsystem Restart (SSR) Notification Clients
+==============================================================================
+Subsystem        Priority     Notifier Callback Handler                       
+------------------------------------------------------------------------------
+lpass            0            qcom_slim_ngd_ssr_notify                        
+                 0            fastrpc_restart_notifier_cb                     
+mpss             1            icnss_modem_notifier_nb                         
+                 0            fastrpc_restart_notifier_cb                     
+cdsp             0            fastrpc_restart_notifier_cb                     
+------------------------------------------------------------------------------
+Tip: In SSR hang issues, trace if any listener above is stuck during notification.
+```
+
+### subsys -m
+Display Qualcomm Shared Memory (SMEM) and SMP2P cross-processor communication state channels:
+```
+crash> subsys -m
+Qualcomm Shared Memory (SMEM) & SMP2P State Channels
+==============================================================================
+State Address        SMP2P / SMEM Node Name           Update Callback         
+------------------------------------------------------------------------------
+0xffffff8003e77380   qcom,smp2p-ipa-1-out             smp2p_update_bits       
+0xffffff8003e77440   master-kernel                    smp2p_update_bits       
+------------------------------------------------------------------------------
 ```
