@@ -393,4 +393,8 @@ add_plugin(lockdep
 # =================== build rcu ===================
 add_plugin(rcu
     rcu/rcu.cpp)
+
+# =================== build irqs ===================
+add_plugin(irqs
+    irqs/irqs.cpp)
 endif()
