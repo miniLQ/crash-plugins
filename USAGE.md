@@ -42,6 +42,9 @@ Support command:
 | [lockdep](#lockdep)      | ×           | √            | ×            | ×            |  Lockdep detection       |
 | [iommu](#iommu)          | √           | √            | √            | √            |  print iommu information |
 | [subsys](#subsys)        | √           | √            | √            | √            |  show peripheral subsys  |
+| [hungtask](#hungtask)    | √           | √            | √            | √            |  hung task and deadlock diagnostics |===
+| [irqs](#irqs)            | √           | √            | √            | √            |  show irqs and softirq info |
+
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -1328,6 +1331,81 @@ binder_proc:0xffffff801a7a5400 ndroid.settings [4268] binder dead:0 frozen:0 sr:
   binder_ref:0xffffff80538f2480 id:97811 desc:2 s:1 w:1 death:0 -> node_id:4401 binder_proc:0xffffff8016b5ac00 system_server[1067]
 ```
 
+### binder -o
+Display diagnostic overview and health assessment.
+```
+crash> binder -o
+Binder IPC System Overview & Diagnostics
+==============================================================================
+  Binder Processes:       38         Total Binder Threads: 154
+  Ready/Waiting Threads:  92         Active Sync Calls:     3
+  Starved Processes:      0          Congested Queues (>5): 0
+  Dependency Cycles:      0
+------------------------------------------------------------------------------
+  Health Assessment:
+  [*] 3 active sync call(s) in progress. No circular dependencies found.
+      Run 'binder -c' to inspect transaction wait chains.
+==============================================================================
+```
+
+### binder -c
+Display synchronous call chains (multi-hop transaction wait paths) and candidate blockers.
+```
+crash> binder -c
+Synchronous Binder Transaction Call Chains
+==============================================================================
+Chain originating from [1067:2341] system_server (ActivityManager):
+  └─► [2150:2150] com.android.phone (PhoneApp) [State: RU] (trans: 0xffffff804f812000 id:409173 code:12)
+    ▲ Leaf thread is currently RUNNING on CPU
+------------------------------------------------------------------------------
+```
+
+### binder -d
+Detect thread-level dependency cycles (potential circular deadlocks).
+```
+crash> binder -d
+Binder IPC Dependency Cycle Detection (Thread-level)
+==============================================================================
+  No thread-level circular dependencies detected in Binder IPC graph.
+  All synchronous transactions are arranged in acyclic dependency paths.
+==============================================================================
+```
+
+### binder -B
+Rank top blocker processes causing downstream thread waits.
+```
+crash> binder -B
+Top Binder Blocker Processes Ranking
+Rank  PID     Process Name             Blocked Procs    Blocked Threads  Total Trans 
+----------------------------------------------------------------------------------------
+1     1067    system_server            3                5                5           
+2     504     servicemanager           1                1                1           
+----------------------------------------------------------------------------------------
+```
+
+### binder -s
+Diagnose binder thread pool starvation.
+```
+crash> binder -s
+Binder Thread Pool Starvation Diagnosis
+PID     Process Name             Ready        Total        Max          Todo Queue   Status  
+----------------------------------------------------------------------------------------
+  No thread pool starvation detected. All processes have available threads.
+----------------------------------------------------------------------------------------
+```
+
+### binder -q
+Analyze pending todo queues and asynchronous oneway queues.
+```
+crash> binder -q
+Binder Pending Todo Queues & Async (Oneway) Analysis
+PID     Process Name             Todo Items   Async Todo     Buffer Size    Free Async    
+----------------------------------------------------------------------------------------
+1067    system_server            2            1              1024 KB        512 KB        
+----------------------------------------------------------------------------------------
+Total pending sync todo: 2, Total pending async todo: 1
+```
+
 ## cpu
 This command dumps the cpu info.
 
@@ -2513,12 +2591,10 @@ Display high-level overview and health matrix of all registered peripheral subsy
 ```
 crash> subsys -a
 Qualcomm Peripheral Subsystems & SSR Health Overview
-==============================================================================
   Subsystems:   3         Online:  3         Crashed: 0
   Crash Count:  0         Offline: 0         Pending: 0
 ------------------------------------------------------------------------------
   [+] All registered peripheral subsystems are healthy and running.
-==============================================================================
 
 Peripheral Subsystems Status Table
 Subsystem Name             Role / Alias     State      Crashes   Firmware     
@@ -2535,7 +2611,6 @@ Deep-dive inspection of a specific subsystem (Modem, ADSP, CDSP, SLPI, etc.) dir
 ```
 crash> subsys -s adsp
 Peripheral Subsystem Deep-Dive: a400000.remoteproc-adsp
-==============================================================================
   Name / Role        : a400000.remoteproc-adsp (Audio / ADSP)
   Remoteproc Address : 0xffffff8047c48000
   Firmware Image     : adsp.mdt
@@ -2556,7 +2631,6 @@ Peripheral Subsystem Deep-Dive: a400000.remoteproc-adsp
     - 0xffffff8047c48600: GLINK (IPC)        [adsp]
     - 0xffffff8047c48640: SSR (Restart)      [adsp]
     - 0xffffff8047c48680: SYSMON (SSCTL)
-==============================================================================
 ```
 
 ### subsys -c
@@ -2564,10 +2638,8 @@ Diagnose peripheral subsystem crashes, failure states, and SMEM crash reasons:
 ```
 crash> subsys -c
 Qualcomm Subsystem Crash & SSR Failure Diagnosis
-==============================================================================
   [PASS] All peripheral subsystems are healthy. Zero crash events recorded.
   No SSR restarts or pending recovery work queues detected.
-==============================================================================
 ```
 
 ### subsys -n (or subsys -l)
@@ -2575,7 +2647,6 @@ Display Subsystem Restart (SSR) notification matrix and registered callback list
 ```
 crash> subsys -n
 Qualcomm Subsystem Restart (SSR) Notification Clients
-==============================================================================
 Subsystem        Priority     Notifier Callback Handler                       
 ------------------------------------------------------------------------------
 lpass            0            qcom_slim_ngd_ssr_notify                        
@@ -2592,10 +2663,225 @@ Display Qualcomm Shared Memory (SMEM) and SMP2P cross-processor communication st
 ```
 crash> subsys -m
 Qualcomm Shared Memory (SMEM) & SMP2P State Channels
-==============================================================================
 State Address        SMP2P / SMEM Node Name           Update Callback         
 ------------------------------------------------------------------------------
 0xffffff8003e77380   qcom,smp2p-ipa-1-out             smp2p_update_bits       
 0xffffff8003e77440   master-kernel                    smp2p_update_bits       
 ------------------------------------------------------------------------------
 ```
+## hungtask
+This command analyzes hung tasks (TASK_UNINTERRUPTIBLE / D state), clusters wait-channel bottlenecks, diagnoses memory reclaim deadlocks and lock contention, and unwinds kernel call stacks from `cpu_context`.
+
+### hungtask -a
+Display an overview of all D-state (uninterruptible) tasks with their wait channels and categories.
+```
+crash> hungtask -a
+Hung & D-State Tasks Overview (TASK_UNINTERRUPTIBLE)
+┌──────┬──────┬────┬───────┬──────────────────┬──────────────────┬─────────────────────────────┬──────────────────────────┐
+│  PID │ PPID │ CPU│ State │ Task Pointer     │ Comm             │ Wait Channel (wchan)        │ Category                 │
+├──────┼──────┼────┼───────┼──────────────────┼──────────────────┼─────────────────────────────┼──────────────────────────┤
+│ 7452 │  620 │  2 │ D(UN) │ 0xffffff8027150a00 │ usap64           │ throttle_direct_reclaim     │ [Memory Reclaim / Alloc] │
+│ 7461 │  620 │  3 │ D(UN) │ 0xffffff8027151800 │ usap64           │ throttle_direct_reclaim     │ [Memory Reclaim / Alloc] │
+│ 8102 │  801 │  1 │ D(UN) │ 0xffffff8034502000 │ surfaceflinger   │ rwsem_down_read_slowpath    │ [RW Semaphore]           │
+└──────┴──────┴────┴───────┴──────────────────┴──────────────────┴─────────────────────────────┴──────────────────────────┘
+Total Tasks: 1771 | D-State (Hung) Tasks: 32 (1.81%)
+Category Breakdown: Memory Reclaim: 25 | Mutex: 3 | RWSEM: 4 | I/O Wait: 0
+[!] ALERT: High concentration of tasks (25) stuck in Memory Reclaim / Direct Reclaim!
+```
+
+### hungtask -l (or -w)
+Cluster and rank wait channels (wchan) to identify the primary system bottleneck.
+```
+crash> hungtask -l
+Wait Channel Bottleneck Clustering & Root Cause Ranking
+┌─────┬───────┬────────┬─────────────────────────────┬──────────────────────────┬───────────────────────────────┐
+│ Rank│ Tasks │  Ratio │ Wait Channel (wchan)        │ Category                 │ Example PIDs (Comm)           │
+├─────┼───────┼────────┼─────────────────────────────┼──────────────────────────┼───────────────────────────────┤
+│   1 │    25 │ 78.12% │ throttle_direct_reclaim     │ [Memory Reclaim / Alloc] │ 7452(usap64), 7461(usap64)... │
+│   2 │     4 │ 12.50% │ rwsem_down_read_slowpath    │ [RW Semaphore]           │ 8102(surfaceflinger)...       │
+│   3 │     3 │  9.38% │ mutex_lock                  │ [Mutex Lock]             │ 5120(system_server)...        │
+└─────┴───────┴────────┴─────────────────────────────┴──────────────────────────┴───────────────────────────────┘
+Primary System Bottleneck: 'throttle_direct_reclaim' with 25 tasks (78.12% of all D-state tasks)
+```
+
+### hungtask -d
+Detect deadlocks, memory reclaim stalls, `PF_MEMALLOC` flag holders, `kswapd` thread state, and lock contention.
+```
+crash> hungtask -d
+Deadlock & System Blockage Diagnostics
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [1] Memory Pressure & Deadlock Assessment:                                   │
+│   - Direct Reclaim Stalled Tasks:  25 tasks currently blocked in reclaim     │
+│   - Tasks with PF_MEMALLOC set:    8 tasks                                   │
+│   - kswapd0    : PID 128   State: [D ] Task: 0xffffff8027018000 [ALERT: BLOCKED!]
+│                                                                              │
+│ [2] Lock Contention & IPC Breakdown:                                         │
+│   - Tasks waiting on Mutexes:      3                                         │
+│   - Tasks waiting on RW Semaphores:4                                         │
+│   - Tasks waiting on I/O:          0                                         │
+│   - Tasks waiting on Binder IPC:   0                                         │
+│                                                                              │
+│ [3] Top Blockage Functions (Wait Channels):                                  │
+│   - throttle_direct_reclaim        : 25 tasks waiting                        │
+│   - rwsem_down_read_slowpath       : 4 tasks waiting                         │
+│   - mutex_lock                     : 3 tasks waiting                         │
+│                                                                              │
+│ [4] Diagnostic Evaluation:                                                   │
+│   [!] CRITICAL: Memory Deadlock / Severe Allocation Exhaustion detected!     │
+│       Multiple tasks are stalled in direct page reclaim without progress.    │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### hungtask -t <pid|task|comm>
+Deep-dive inspection and kernel call stack unwound from `cpu_context` for a specific task.
+```
+crash> hungtask -t 7452
+Hung Task Deep-Dive: PID 7452 (usap64)
+┌──────────────────────────────────────────────────────────────────────────────┐
+│   PID:                    7452             TGID:          7452               │
+│   PPID:                   620              Last CPU:      2                  │
+│   Task Pointer:           0xffffff8027150a00 Parent Task:   0xffffff802611a000 │
+│   Command:                usap64           Type:          User Process       │
+│   State:                  TASK_UNINTERRUPTIBLE                               │
+│   Flags:                  PF_MEMALLOC                                        │
+│   Priority:               120              Voluntary CSW: 1420               │
+│   Involuntary CSW:        12               mm_struct:     0xffffff8041029000 │
+│   Virtual Memory:         4210432 KB       RSS:           184320 KB          │
+│   Wait Channel (wchan):   throttle_direct_reclaim+0x1a4                      │
+│   Wait Category:          [Memory Reclaim / Alloc]                           │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   Kernel Call Stack (Unwound from cpu_context):                              │
+│     #0  __switch_to+0x148                                                    │
+│     #1  __schedule+0x310                                                     │
+│     #2  schedule+0x58                                                        │
+│     #3  throttle_direct_reclaim+0x1a4                                        │
+│     #4  try_to_free_pages+0x2c0                                              │
+│     #5  __alloc_pages_slowpath+0x3bc                                         │
+│     #6  __alloc_pages+0x264                                                  │
+│     #7  handle_mm_fault+0x814                                                │
+│     #8  do_page_fault+0x12c                                                  │
+│     #9  el0_da+0x44                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### hungtask -s
+Display system-wide task states summary and kernel `hung_task` sysctl parameters.
+```
+crash> hungtask -s
+System Task States Summary
+┌───────────────────────────┬────────────┬─────────────┐
+│ Task State                │      Count │  Percentage │
+├───────────────────────────┼────────────┼─────────────┤
+│ Running (R)               │         23 │       1.30% │
+│ Interruptible Sleep (S)   │       1319 │      74.48% │
+│ Uninterruptible Sleep (D) │          2 │       0.11% │
+│ Idle Kernel Sleep (ID)    │        427 │      24.11% │
+│ Stopped / Traced (T/t)    │          0 │       0.00% │
+│ Zombie / Dead (Z/X)       │          0 │       0.00% │
+├───────────────────────────┼────────────┼─────────────┤
+│ Total Tasks               │       1771 │     100.00% │
+└───────────────────────────┴────────────┴─────────────┘
+Kernel Hung Task Detector Configuration:
+  sysctl_hung_task_timeout_secs : 120 s
+  sysctl_hung_task_panic        : 1 (Panic enabled on hung task)
+  sysctl_hung_task_warnings     : 10
+  sysctl_hung_task_check_count  : 4194304
+
+## irqs
+This command is used to analyze hardware interrupts (IRQ), per-CPU distribution, interrupt storms, and SoftIRQs.
+
+### irqs -a
+Display all registered IRQs overview.
+```
+crash> irqs -a
+Registered IRQs Overview
+┌─────┬────────┬──────────────┬────────────────────────────┬────────────────────────────┬──────────┬──────────┬─────────────┬───────────┐
+│ IRQ#│ HWIRQ  │ Chip         │ Name / Device              │ Handler                    │    Total │ Depth    │ Trigger     │ Affinity  │
+├─────┼────────┼──────────────┼────────────────────────────┼────────────────────────────┼──────────┼──────────┼─────────────┼───────────┤
+│  17 │     17 │ GICv3        │ arch_timer                 │ arch_timer_handler_virt    │  4529012 │ 0 (EN)   │ Level-Low   │ all (0-7) │
+│  22 │     22 │ GICv3        │ kgsl-3d0                   │ kgsl_irq_handler           │   182390 │ 0 (EN)   │ Level-High  │ 4-7       │
+│ 142 │    110 │ msmgpio      │ ufshcd                     │ ufshcd_intr                │    92314 │ 0 (EN)   │ Edge-Rising │ 0-3       │
+└─────┴────────┴──────────────┴────────────────────────────┴────────────────────────────┴──────────┴──────────┴─────────────┴───────────┘
+Total Registered IRQs: 85 | Total Interrupt Fires: 15428932
+```
+
+### irqs -c
+Display per-CPU interrupt fire distribution.
+```
+crash> irqs -c
+Per-CPU Interrupt Distribution (Displaying up to 8 CPUs)
+┌─────┬────────────────────────┬──────────┬──────────┬──────────┬──────────┬───────────┬───────────┐
+│ IRQ#│ Name                   │     CPU0 │     CPU1 │     CPU2 │     CPU3 │     Total │ Affinity  │
+├─────┼────────────────────────┼──────────┼──────────┼──────────┼──────────┼───────────┼───────────┤
+│  17 │ arch_timer             │  1132014 │  1132001 │  1132489 │  1132508 │   4529012 │ all (0-3) │
+│  22 │ kgsl-3d0               │        0 │        0 │   182390 │        0 │    182390 │ 2         │
+└─────┴────────────────────────┴──────────┴──────────┴──────────┴──────────┴───────────┴───────────┘
+```
+
+### irqs -s
+Analyze interrupt storm and top frequency rankings.
+```
+crash> irqs -s
+Interrupt Frequency Ranking (Top 25) & Storm Analysis
+┌─────┬─────┬────────┬────────────────────────────┬────────────────────────────┬──────────┬────────┬──────────────┐
+│ Rank│ IRQ#│ HWIRQ  │ Name / Device              │ Handler                    │    Total │  Ratio │ Top CPU Fire │
+├─────┼─────┼────────┼────────────────────────────┼────────────────────────────┼──────────┼────────┼──────────────┤
+│   1 │  17 │     17 │ arch_timer                 │ arch_timer_handler_virt    │  4529012 │ 45.20% │ CPU0 (1132k) │
+│   2 │  22 │     22 │ kgsl-3d0                   │ kgsl_irq_handler           │   182390 │  8.50% │ CPU2 (182k)  │
+└─────┴─────┴────────┴────────────────────────────┴────────────────────────────┴──────────┴────────┴──────────────┘
+Total Interrupt Fires Across System: 10020000
+```
+
+### irqs -i <irq>
+Display detailed descriptor and action chain for a specific IRQ.
+```
+crash> irqs -i 17
+IRQ Details: IRQ 17
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  IRQ Number:             17                                                  │
+│  HWIRQ Number:           17                                                  │
+│  irq_desc Address:       0xffffffdd7a192800                                  │
+│  Chip Name:              GICv3                                               │
+│  Domain Name:            GICv3                                               │
+│  Trigger Type:           Level-Low                                           │
+│  Disable Depth:          0 (Enabled)                                         │
+│  Unhandled Interrupts:   0                                                   │
+│  Affinity:               all (0-7)                                           │
+│  Total Interrupt Fires:  4529012                                             │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  Per-CPU Breakdown:                                                          │
+│    CPU0 : 1132014   |  CPU1 : 1132001   |  CPU2 : 1132489   |  CPU3 : 1132508  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  Actions Chain (1 registered):                                               │
+│    [0] Name:            arch_timer                                           │
+│        Handler:         arch_timer_handler_virt                              │
+│        Flags:           PERCPU                                               │
+│        Dev ID:          0xffffffdd7a01b200                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### irqs -S
+Display SoftIRQ status, handlers, per-CPU counters, and pending flags.
+```
+crash> irqs -S
+SoftIRQ System Overview
+┌────┬────────────┬────────────────────────────┬──────────┬──────────┬──────────┬────────────┐
+│  # │ SoftIRQ    │ Action Handler             │     CPU0 │     CPU1 │    Total │ Pending    │
+├────┼────────────┼────────────────────────────┼──────────┼──────────┼──────────┼────────────┤
+│  0 │ HI         │ tasklet_hi_action          │        0 │        0 │        0 │ None       │
+│  1 │ TIMER      │ run_timer_softirq          │   234012 │   233910 │   467922 │ None       │
+│  2 │ NET_TX     │ net_tx_action              │     1200 │     1180 │     2380 │ None       │
+│  3 │ NET_RX     │ net_rx_action              │    45120 │    44980 │    90100 │ None       │
+│  4 │ BLOCK      │ blk_done_softirq           │     8900 │     8920 │    17820 │ None       │
+│  5 │ IRQ_POLL   │ irq_poll_softirq           │        0 │        0 │        0 │ None       │
+│  6 │ TASKLET    │ tasklet_action             │     3410 │     3390 │     6800 │ None       │
+│  7 │ SCHED      │ run_rebalance_domains      │   120450 │   120300 │   240750 │ None       │
+│  8 │ HRTIMER    │ hrtimer_run_softirq        │    56000 │    55980 │   111980 │ None       │
+│  9 │ RCU        │ rcu_core                   │   312000 │   311900 │   623900 │ None       │
+└────┴────────────┴────────────────────────────┴──────────┴──────────┴──────────┴────────────┘
+ksoftirqd Thread Status:
+  ksoftirqd/0  : PID 14     Task: 0xffffff802726d040
+  ksoftirqd/1  : PID 21     Task: 0xffffff802726e040
+
+```
+

@@ -126,6 +126,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | **Process & Scheduling** |||
 | procrank | ✓ | ✓ | Process memory ranking (VSS/RSS/PSS/USS) |
 | sched | ✓ | ✓ | Task scheduling information |
+| hungtask | ✓ | ✓ | Hung task, D-state analysis, and deadlock diagnostics |
 | binder | ✓ | ✓ | Binder IPC analysis |
 | lmkd | ✓ | ✓ | Low Memory Killer Daemon |
 | **Device & Drivers** |||
@@ -154,6 +155,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | t32 | ✓ | ✓ | T32 debugger script generation |
 | lockdep | ✓ | ✗ | Lockdep detection |
 | iommu | ✓ | ✗ | print iommu information |
+| irqs | ✓ | ✓ | Interrupt and softirq analysis |
 
 ### Android Userspace Modules
 
