@@ -131,6 +131,7 @@ list(APPEND PLUGIN_SOURCES
     iommu/iommu.cpp
     t32/t32.cpp
     lockdep/lockdep.cpp
+    subsys/subsys.cpp)
     hungtask/hungtask.cpp)
 
 add_library(plugins SHARED ${PLUGIN_SOURCES})
@@ -395,6 +396,9 @@ add_plugin(lockdep
 add_plugin(rcu
     rcu/rcu.cpp)
 
+# =================== build subsys ===================
+add_plugin(subsys
+    subsys/subsys.cpp)
 # =================== build hungtask ===================
 add_plugin(hungtask
     hungtask/hungtask.cpp)

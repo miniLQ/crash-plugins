@@ -55,6 +55,7 @@
 #include "iommu/iommu.h"
 #include "lockdep/lockdep.h"
 #include "rcu/rcu.h"
+#include "subsys/subsys.h"
 #include "hungtask/hungtask.h"
 #include "irqs/irqs.h"
 
@@ -136,6 +137,7 @@ std::shared_ptr<Logger>        Logger::instance        = nullptr;
 std::shared_ptr<IOMMU>         IOMMU::instance         = nullptr;
 std::shared_ptr<Lockdep>       Lockdep::instance       = nullptr;
 std::shared_ptr<Rcu>           Rcu::instance           = nullptr;
+std::shared_ptr<Subsys>        Subsys::instance        = nullptr;
 std::shared_ptr<HungTask>      HungTask::instance      = nullptr;
 std::shared_ptr<Irq>           Irq::instance           = nullptr;
 
@@ -183,6 +185,7 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<IOMMU>());
     plugins.push_back(make_and_init<Lockdep>());
     plugins.push_back(make_and_init<Rcu>());
+    plugins.push_back(make_and_init<Subsys>());
     plugins.push_back(make_and_init<HungTask>());
     plugins.push_back(make_and_init<Irq>());
 
