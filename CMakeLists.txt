@@ -130,7 +130,8 @@ list(APPEND PLUGIN_SOURCES
     systemd/journal.cpp
     iommu/iommu.cpp
     t32/t32.cpp
-    lockdep/lockdep.cpp)
+    lockdep/lockdep.cpp
+    hungtask/hungtask.cpp)
 
 add_library(plugins SHARED ${PLUGIN_SOURCES})
 if (CMAKE_BUILD_TARGET_ARCH STREQUAL "arm64")
@@ -394,7 +395,12 @@ add_plugin(lockdep
 add_plugin(rcu
     rcu/rcu.cpp)
 
+# =================== build hungtask ===================
+add_plugin(hungtask
+    hungtask/hungtask.cpp)
+
 # =================== build irqs ===================
 add_plugin(irqs
     irqs/irqs.cpp)
+
 endif()
