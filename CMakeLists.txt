@@ -398,4 +398,9 @@ add_plugin(rcu
 # =================== build hungtask ===================
 add_plugin(hungtask
     hungtask/hungtask.cpp)
+
+# =================== build irqs ===================
+add_plugin(irqs
+    irqs/irqs.cpp)
+
 endif()

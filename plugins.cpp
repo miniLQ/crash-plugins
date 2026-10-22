@@ -56,6 +56,7 @@
 #include "lockdep/lockdep.h"
 #include "rcu/rcu.h"
 #include "hungtask/hungtask.h"
+#include "irqs/irqs.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpointer-arith"
@@ -136,6 +137,7 @@ std::shared_ptr<IOMMU>         IOMMU::instance         = nullptr;
 std::shared_ptr<Lockdep>       Lockdep::instance       = nullptr;
 std::shared_ptr<Rcu>           Rcu::instance           = nullptr;
 std::shared_ptr<HungTask>      HungTask::instance      = nullptr;
+std::shared_ptr<Irq>           Irq::instance           = nullptr;
 
 extern "C" void __attribute__((constructor)) plugin_init(void) {
     // fprintf(fp, "plugin_init\n");
@@ -182,6 +184,8 @@ extern "C" void __attribute__((constructor)) plugin_init(void) {
     plugins.push_back(make_and_init<Lockdep>());
     plugins.push_back(make_and_init<Rcu>());
     plugins.push_back(make_and_init<HungTask>());
+    plugins.push_back(make_and_init<Irq>());
+
     std::cout << "\033[32m"
             << std::fixed << std::setprecision(6)
             << "[Load] Constructor: " << total_construct_time.count() << " s, "

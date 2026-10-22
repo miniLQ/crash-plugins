@@ -41,7 +41,9 @@ Support command:
 | [ftrace](#ftrace)        | ×           | √            | ×            | ×            |  parser trace event info |
 | [lockdep](#lockdep)      | ×           | √            | ×            | ×            |  Lockdep detection       |
 | [iommu](#iommu)          | √           | √            | √            | √            |  print iommu information |
-| [hungtask](#hungtask)    | √           | √            | √            | √            |  hung task and deadlock diagnostics |
+| [hungtask](#hungtask)    | √           | √            | √            | √            |  hung task and deadlock diagnostics |===
+| [irqs](#irqs)            | √           | √            | √            | √            |  show irqs and softirq info |
+
 
 |  command                 |   Android-11(30)  |  Android-12(31) |  Android-13(33) |     comment           |
 |  --------                | ----------------  | --------------- | --------------- | -----------------     |
@@ -1326,6 +1328,81 @@ binder_proc:0xffffff801a7a5400 ndroid.settings [4268] binder dead:0 frozen:0 sr:
   binder_ref:0xffffff805b026d00 id:97775 desc:1 s:1 w:1 death:0 -> node_id:5632 binder_proc:0xffffff8016b5ac00 system_server[1067]
   binder_ref:0xffffff805d210600 id:97772 desc:0 s:1 w:1 death:0 -> node_id:1 binder_proc:0xffffff801f8d6400 servicemanager[504]
   binder_ref:0xffffff80538f2480 id:97811 desc:2 s:1 w:1 death:0 -> node_id:4401 binder_proc:0xffffff8016b5ac00 system_server[1067]
+```
+
+### binder -o
+Display diagnostic overview and health assessment.
+```
+crash> binder -o
+Binder IPC System Overview & Diagnostics
+==============================================================================
+  Binder Processes:       38         Total Binder Threads: 154
+  Ready/Waiting Threads:  92         Active Sync Calls:     3
+  Starved Processes:      0          Congested Queues (>5): 0
+  Dependency Cycles:      0
+------------------------------------------------------------------------------
+  Health Assessment:
+  [*] 3 active sync call(s) in progress. No circular dependencies found.
+      Run 'binder -c' to inspect transaction wait chains.
+==============================================================================
+```
+
+### binder -c
+Display synchronous call chains (multi-hop transaction wait paths) and candidate blockers.
+```
+crash> binder -c
+Synchronous Binder Transaction Call Chains
+==============================================================================
+Chain originating from [1067:2341] system_server (ActivityManager):
+  └─► [2150:2150] com.android.phone (PhoneApp) [State: RU] (trans: 0xffffff804f812000 id:409173 code:12)
+    ▲ Leaf thread is currently RUNNING on CPU
+------------------------------------------------------------------------------
+```
+
+### binder -d
+Detect thread-level dependency cycles (potential circular deadlocks).
+```
+crash> binder -d
+Binder IPC Dependency Cycle Detection (Thread-level)
+==============================================================================
+  No thread-level circular dependencies detected in Binder IPC graph.
+  All synchronous transactions are arranged in acyclic dependency paths.
+==============================================================================
+```
+
+### binder -B
+Rank top blocker processes causing downstream thread waits.
+```
+crash> binder -B
+Top Binder Blocker Processes Ranking
+Rank  PID     Process Name             Blocked Procs    Blocked Threads  Total Trans 
+----------------------------------------------------------------------------------------
+1     1067    system_server            3                5                5           
+2     504     servicemanager           1                1                1           
+----------------------------------------------------------------------------------------
+```
+
+### binder -s
+Diagnose binder thread pool starvation.
+```
+crash> binder -s
+Binder Thread Pool Starvation Diagnosis
+PID     Process Name             Ready        Total        Max          Todo Queue   Status  
+----------------------------------------------------------------------------------------
+  No thread pool starvation detected. All processes have available threads.
+----------------------------------------------------------------------------------------
+```
+
+### binder -q
+Analyze pending todo queues and asynchronous oneway queues.
+```
+crash> binder -q
+Binder Pending Todo Queues & Async (Oneway) Analysis
+PID     Process Name             Todo Items   Async Todo     Buffer Size    Free Async    
+----------------------------------------------------------------------------------------
+1067    system_server            2            1              1024 KB        512 KB        
+----------------------------------------------------------------------------------------
+Total pending sync todo: 2, Total pending async todo: 1
 ```
 
 ## cpu
@@ -2622,5 +2699,102 @@ Kernel Hung Task Detector Configuration:
   sysctl_hung_task_panic        : 1 (Panic enabled on hung task)
   sysctl_hung_task_warnings     : 10
   sysctl_hung_task_check_count  : 4194304
+
+## irqs
+This command is used to analyze hardware interrupts (IRQ), per-CPU distribution, interrupt storms, and SoftIRQs.
+
+### irqs -a
+Display all registered IRQs overview.
+```
+crash> irqs -a
+Registered IRQs Overview
+┌─────┬────────┬──────────────┬────────────────────────────┬────────────────────────────┬──────────┬──────────┬─────────────┬───────────┐
+│ IRQ#│ HWIRQ  │ Chip         │ Name / Device              │ Handler                    │    Total │ Depth    │ Trigger     │ Affinity  │
+├─────┼────────┼──────────────┼────────────────────────────┼────────────────────────────┼──────────┼──────────┼─────────────┼───────────┤
+│  17 │     17 │ GICv3        │ arch_timer                 │ arch_timer_handler_virt    │  4529012 │ 0 (EN)   │ Level-Low   │ all (0-7) │
+│  22 │     22 │ GICv3        │ kgsl-3d0                   │ kgsl_irq_handler           │   182390 │ 0 (EN)   │ Level-High  │ 4-7       │
+│ 142 │    110 │ msmgpio      │ ufshcd                     │ ufshcd_intr                │    92314 │ 0 (EN)   │ Edge-Rising │ 0-3       │
+└─────┴────────┴──────────────┴────────────────────────────┴────────────────────────────┴──────────┴──────────┴─────────────┴───────────┘
+Total Registered IRQs: 85 | Total Interrupt Fires: 15428932
+```
+
+### irqs -c
+Display per-CPU interrupt fire distribution.
+```
+crash> irqs -c
+Per-CPU Interrupt Distribution (Displaying up to 8 CPUs)
+┌─────┬────────────────────────┬──────────┬──────────┬──────────┬──────────┬───────────┬───────────┐
+│ IRQ#│ Name                   │     CPU0 │     CPU1 │     CPU2 │     CPU3 │     Total │ Affinity  │
+├─────┼────────────────────────┼──────────┼──────────┼──────────┼──────────┼───────────┼───────────┤
+│  17 │ arch_timer             │  1132014 │  1132001 │  1132489 │  1132508 │   4529012 │ all (0-3) │
+│  22 │ kgsl-3d0               │        0 │        0 │   182390 │        0 │    182390 │ 2         │
+└─────┴────────────────────────┴──────────┴──────────┴──────────┴──────────┴───────────┴───────────┘
+```
+
+### irqs -s
+Analyze interrupt storm and top frequency rankings.
+```
+crash> irqs -s
+Interrupt Frequency Ranking (Top 25) & Storm Analysis
+┌─────┬─────┬────────┬────────────────────────────┬────────────────────────────┬──────────┬────────┬──────────────┐
+│ Rank│ IRQ#│ HWIRQ  │ Name / Device              │ Handler                    │    Total │  Ratio │ Top CPU Fire │
+├─────┼─────┼────────┼────────────────────────────┼────────────────────────────┼──────────┼────────┼──────────────┤
+│   1 │  17 │     17 │ arch_timer                 │ arch_timer_handler_virt    │  4529012 │ 45.20% │ CPU0 (1132k) │
+│   2 │  22 │     22 │ kgsl-3d0                   │ kgsl_irq_handler           │   182390 │  8.50% │ CPU2 (182k)  │
+└─────┴─────┴────────┴────────────────────────────┴────────────────────────────┴──────────┴────────┴──────────────┘
+Total Interrupt Fires Across System: 10020000
+```
+
+### irqs -i <irq>
+Display detailed descriptor and action chain for a specific IRQ.
+```
+crash> irqs -i 17
+IRQ Details: IRQ 17
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  IRQ Number:             17                                                  │
+│  HWIRQ Number:           17                                                  │
+│  irq_desc Address:       0xffffffdd7a192800                                  │
+│  Chip Name:              GICv3                                               │
+│  Domain Name:            GICv3                                               │
+│  Trigger Type:           Level-Low                                           │
+│  Disable Depth:          0 (Enabled)                                         │
+│  Unhandled Interrupts:   0                                                   │
+│  Affinity:               all (0-7)                                           │
+│  Total Interrupt Fires:  4529012                                             │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  Per-CPU Breakdown:                                                          │
+│    CPU0 : 1132014   |  CPU1 : 1132001   |  CPU2 : 1132489   |  CPU3 : 1132508  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  Actions Chain (1 registered):                                               │
+│    [0] Name:            arch_timer                                           │
+│        Handler:         arch_timer_handler_virt                              │
+│        Flags:           PERCPU                                               │
+│        Dev ID:          0xffffffdd7a01b200                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### irqs -S
+Display SoftIRQ status, handlers, per-CPU counters, and pending flags.
+```
+crash> irqs -S
+SoftIRQ System Overview
+┌────┬────────────┬────────────────────────────┬──────────┬──────────┬──────────┬────────────┐
+│  # │ SoftIRQ    │ Action Handler             │     CPU0 │     CPU1 │    Total │ Pending    │
+├────┼────────────┼────────────────────────────┼──────────┼──────────┼──────────┼────────────┤
+│  0 │ HI         │ tasklet_hi_action          │        0 │        0 │        0 │ None       │
+│  1 │ TIMER      │ run_timer_softirq          │   234012 │   233910 │   467922 │ None       │
+│  2 │ NET_TX     │ net_tx_action              │     1200 │     1180 │     2380 │ None       │
+│  3 │ NET_RX     │ net_rx_action              │    45120 │    44980 │    90100 │ None       │
+│  4 │ BLOCK      │ blk_done_softirq           │     8900 │     8920 │    17820 │ None       │
+│  5 │ IRQ_POLL   │ irq_poll_softirq           │        0 │        0 │        0 │ None       │
+│  6 │ TASKLET    │ tasklet_action             │     3410 │     3390 │     6800 │ None       │
+│  7 │ SCHED      │ run_rebalance_domains      │   120450 │   120300 │   240750 │ None       │
+│  8 │ HRTIMER    │ hrtimer_run_softirq        │    56000 │    55980 │   111980 │ None       │
+│  9 │ RCU        │ rcu_core                   │   312000 │   311900 │   623900 │ None       │
+└────┴────────────┴────────────────────────────┴──────────┴──────────┴──────────┴────────────┘
+ksoftirqd Thread Status:
+  ksoftirqd/0  : PID 14     Task: 0xffffff802726d040
+  ksoftirqd/1  : PID 21     Task: 0xffffff802726e040
+
 ```
 

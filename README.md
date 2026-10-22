@@ -154,6 +154,7 @@ crash> extend <path-to>/output/arm64/slub.so
 | t32 | ✓ | ✓ | T32 debugger script generation |
 | lockdep | ✓ | ✗ | Lockdep detection |
 | iommu | ✓ | ✗ | print iommu information |
+| irqs | ✓ | ✓ | Interrupt and softirq analysis |
 
 ### Android Userspace Modules
 
